@@ -10,8 +10,6 @@ def main():
     target_alloc = RISK_PROFILES.get(RISK_LEVEL)
     if not target_alloc:
         raise ValueError("Invalid risk level")
-    # ALPACA_API_KEY_ID="PK09GIKYQ8U8O53E8WPL"
-    # ALPACA_API_SECRET_KEY="acmXhvU0jUxebAlgYPM0O9XgTJ3a8cBrRTXLG4fP"
 
     trader = AlpacaTrader(API_KEY, SECRET_KEY, paper=True)
     trader.rebalance(target_alloc)

@@ -36,7 +36,7 @@ export RISK_LEVEL="moderate"
 
 To run unit tests:
 ```bash
-pytest -q
+pytest -v
 ```
 
 To execute trades in your paper account based on your risk profile:
