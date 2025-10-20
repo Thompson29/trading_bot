@@ -1,0 +1,9 @@
+{
+  "VOO": {"type": "stock", "sector": "broad"},
+  "VTI": {"type": "stock", "sector": "broad"},
+  "VUG": {"type": "stock", "sector": "growth"},
+  "VTWO": {"type": "stock", "sector": "small-cap"},
+  "VEA": {"type": "stock", "sector": "international"},
+  "BND": {"type": "bond", "sector": "bonds"},
+  "VIG": {"type": "dividend", "sector": "dividends"}
+}

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trading_bot_3"
+version = "0.1.0"
+description = "A trading bot using Vanguard ETFs and Alpaca API"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["alpaca-py>=0.10.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["allocator"]
