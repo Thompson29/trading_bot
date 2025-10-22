@@ -181,7 +181,7 @@ class AlpacaTrader:
                 qty=quantity,
                 side=side,
                 time_in_force=TimeInForce.DAY,
-                extended_hours=True  # Fixed typo: was 'extened_hours'
+                extended_hours=False
             )
             
             order_response = self.client.submit_order(order)

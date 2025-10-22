@@ -7,6 +7,7 @@ Rebalances portfolio based on risk profile or target date fund strategy.
 import os
 import sys
 import logging
+from dotenv import load_dotenv
 from datetime import datetime
 from core.trader import AlpacaTrader
 from core.profiles import RISK_PROFILES
@@ -30,6 +31,7 @@ def validate_environment():
     Raises:
         ValueError: If required environment variables are missing
     """
+    load_dotenv()  # Load .env file
     required_vars = ['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
@@ -124,10 +126,12 @@ def main():
         
         # Execute rebalancing
         logger.info("Starting portfolio rebalancing...")
-        trader.rebalance(target_alloc)
-        
+        results = trader.rebalance(target_alloc)
         logger.info("="*60)
-        logger.info(f"✅ Successfully rebalanced portfolio to {strategy_name}")
+        if False in results.values():
+            logger.error("Some assets were not rebalanced successfully.")
+        else:
+            logger.info(f"✅ Successfully rebalanced portfolio to {strategy_name}")
         logger.info("="*60)
         
         return 0

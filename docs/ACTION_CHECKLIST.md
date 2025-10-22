@@ -104,9 +104,9 @@ Use this checklist to implement all the fixes and enhancements.
   chmod +x scripts/setup.sh
   ```
 
-- [ ] **Add validate.py**
+- [ ] **Add scripts/validate_env.py**
   ```bash
-  chmod +x validate.py
+  chmod +x scripts/validate_env.py
   ```
 
 ## 🎯 Step 6: Add Backtesting (Item 2)
@@ -124,7 +124,7 @@ Use this checklist to implement all the fixes and enhancements.
 
 - [ ] **Run validation script**
   ```bash
-  python validate.py
+  python scripts/validate_env.py
   ```
   Expected: All checks should pass
 
@@ -151,7 +151,7 @@ Use this checklist to implement all the fixes and enhancements.
 
 - [ ] **Run backtest**
   ```bash
-  python backtest.py
+  python backtest/backtest.py
   ```
   Expected: Generates `backtest_results.json` and `BACKTEST_RESULTS.md`
 
@@ -262,7 +262,7 @@ Use this checklist to implement all the fixes and enhancements.
 ## 🎯 Step 13: Test End-to-End
 
 - [ ] **Full system test**
-  1. Run validate.py - should pass
+  1. Run scripts/validate_env.py - should pass
   2. Run pytest - should pass
   3. Run backtest.py - should generate results
   4. Run main.py - should execute rebalancing
@@ -327,7 +327,7 @@ pytest --cache-clear
 ### API Errors
 ```bash
 # Verify credentials
-python validate.py
+python scripts/validate_env.py
 
 # Test API connection separately
 python -c "from alpaca.trading.client import TradingClient; \
@@ -363,7 +363,7 @@ pwd
 
 ## 📞 Need Help?
 
-1. Run `python validate.py` for diagnostic info
+1. Run `python scripts/validate_env.py` for diagnostic info
 2. Check `logs/trading_bot.log` for detailed errors
 3. Review TESTING.md for test troubleshooting
 4. Check QUICK_REFERENCE.md for commands

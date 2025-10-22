@@ -32,7 +32,7 @@ python backtest.py
 
 # Custom backtest in Python
 python
->>> from backtest import run_backtest
+>>> from backtest.backtest import run_backtest
 >>> results = run_backtest(years_back=5, rebalance_frequency="monthly")
 ```
 

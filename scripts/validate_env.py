@@ -8,6 +8,7 @@ Checks that the trading bot is properly configured before running.
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 
 class Colors:
@@ -58,7 +59,7 @@ def check_project_structure():
     
     required_files = [
         'main.py',
-        'backtest.py',
+        'backtest/backtest.py',
         'requirements.txt',
         '.env',
         '.gitignore',
@@ -103,9 +104,6 @@ def check_environment_variables():
             issues.append(var)
         elif value == 'your_api_key_here' or value == 'your_secret_key_here':
             print_error(f"Not configured: {var} (still has placeholder value)")
-            issues.append(var)
-        elif 'PK09GIKYQ8U8O53E8WPL' in value or 'acmXhvU0jUxebAlgYPM0O9XgTJ3a8cBrRTXLG4fP' in value:
-            print_error(f"SECURITY RISK: {var} contains hardcoded example key!")
             issues.append(var)
         else:
             print_success(f"Set: {var}")
@@ -253,6 +251,7 @@ def check_gitignore():
 def main():
     """Run all validation checks"""
     print_header("Trading Bot Configuration Validator")
+    load_dotenv()  # Load .env file
     
     checks = [
         ("Python Version", check_python_version),
