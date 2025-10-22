@@ -12,4 +12,4 @@ dependencies = ["alpaca-py>=0.10.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["allocator"]
+include = ["core"]

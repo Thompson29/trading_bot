@@ -1,8 +1,8 @@
 import pytest
 import os
-from allocator.trader import AlpacaTrader
-from allocator.utils import calculate_diffs
-from allocator.profiles import RISK_PROFILES
+from core.trader import AlpacaTrader
+from core.utils import calculate_diffs
+from core.profiles import RISK_PROFILES
 
 # --- Allocation Tests ---
 
@@ -64,7 +64,7 @@ def test_trader_rebalance(monkeypatch):
     mock = MockClient()
     monkeypatch.setattr(trader, "client", mock)
 
-    target_alloc = {"VTI": 0.5, "VOO": 0.3, "BND": 0.2}
+    target_alloc = {"VTI": 0.2, "VOO": 0.5, "BND": 0.3}
     trader.rebalance(target_alloc)
 
     assert len(mock.orders) == 3
