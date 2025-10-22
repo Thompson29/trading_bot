@@ -78,7 +78,7 @@ python backtest.py
 
 **Custom backtest:**
 ```python
-from backtest import run_backtest
+from backtest.backtest import run_backtest
 
 # 5-year backtest with monthly rebalancing
 results = run_backtest(

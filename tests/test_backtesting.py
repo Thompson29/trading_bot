@@ -48,7 +48,8 @@ class TestPortfolioBacktester:
         
         value = backtester.calculate_portfolio_value(prices, holdings)
         
-        assert value == 1500.0
+        # 10 * 100 + 5 * 200 = 1000 + 1000 = 2000
+        assert value == 2000.0
 
     def test_rebalance_portfolio(self, backtester):
         """Test portfolio rebalancing calculation"""

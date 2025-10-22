@@ -189,7 +189,7 @@ python -m backtest
 
 ### Custom Backtest
 ```python
-from backtest import run_backtest
+from backtest.backtest import run_backtest
 
 # 5-year backtest with monthly rebalancing
 results = run_backtest(
@@ -201,7 +201,7 @@ results = run_backtest(
 
 ### Backtest Single Profile
 ```python
-from backtest import PortfolioBacktester
+from backtest.backtest import PortfolioBacktester
 from datetime import datetime, timedelta
 import os
 
