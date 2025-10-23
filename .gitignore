@@ -56,6 +56,9 @@ config.py
 *_secret.txt
 credentials.json
 
+# Documentation
+docs/CHANGES_SUMMARY.md
+
 # Backup files
 *.bak
 *.tmp
