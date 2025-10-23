@@ -1,185 +1,25 @@
+"""
+Unit tests for core/trader.py
+
+Tests AlpacaTrader class and trading functionality.
+"""
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from alpaca.trading.enums import OrderSide, TimeInForce
-from core.trader import AlpacaTrader
-from core.utils import calculate_diffs, summarize_allocation
+from alpaca.common.exceptions import APIError
+from core.trader import AlpacaTrader, TradingError
 from core.profiles import RISK_PROFILES
 
 
 # ============================================================================
-# UNIT TESTS - Utils Module
+# INITIALIZATION TESTS
 # ============================================================================
 
-class TestCalculateDiffs:
-    """Test suite for calculate_diffs function"""
-    
-    def test_calculate_diffs_basic(self):
-        """Test basic diff calculation"""
-        current_alloc = {"VTI": 300, "VOO": 300, "BND": 400}
-        target_alloc = {"VTI": 0.5, "VOO": 0.3, "BND": 0.2}
-        total_value = 1000
+class TestAlpacaTraderInitialization:
+    """Test suite for AlpacaTrader initialization"""
 
-        diffs = calculate_diffs(current_alloc, target_alloc, total_value)
-
-        assert diffs["VTI"] == 200.0
-        assert diffs["VOO"] == 0.0
-        assert diffs["BND"] == -200.0
-
-    def test_calculate_diffs_empty_current(self):
-        """Test when starting with no positions"""
-        current_alloc = {}
-        target_alloc = {"VTI": 0.5, "VOO": 0.3, "BND": 0.2}
-        total_value = 1000
-
-        diffs = calculate_diffs(current_alloc, target_alloc, total_value)
-
-        assert diffs["VTI"] == 500.0
-        assert diffs["VOO"] == 300.0
-        assert diffs["BND"] == 200.0
-
-    def test_calculate_diffs_new_positions(self):
-        """Test adding new positions not in current allocation"""
-        current_alloc = {"VTI": 500, "VOO": 500}
-        target_alloc = {"VTI": 0.4, "VOO": 0.4, "BND": 0.2}
-        total_value = 1000
-
-        diffs = calculate_diffs(current_alloc, target_alloc, total_value)
-
-        assert diffs["VTI"] == -100.0
-        assert diffs["VOO"] == -100.0
-        assert diffs["BND"] == 200.0
-
-    def test_calculate_diffs_zero_total_value(self):
-        """Test with zero account value"""
-        current_alloc = {}
-        target_alloc = {"VTI": 0.5, "VOO": 0.5}
-        total_value = 0
-
-        diffs = calculate_diffs(current_alloc, target_alloc, total_value)
-
-        assert diffs["VTI"] == 0.0
-        assert diffs["VOO"] == 0.0
-
-    def test_calculate_diffs_rounding(self):
-        """Test that results are properly rounded to 2 decimals"""
-        current_alloc = {"VTI": 333.33}
-        target_alloc = {"VTI": 0.3333}
-        total_value = 1000
-
-        diffs = calculate_diffs(current_alloc, target_alloc, total_value)
-
-        # 333.3 target - 333.33 current = -0.03 (rounded to 2 decimals)
-        assert diffs["VTI"] == -0.03
-
-    def test_summarize_allocation(self, caplog):
-        """Test allocation summary logging"""
-        import logging
-        caplog.set_level(logging.INFO)
-        
-        allocation = {"VTI": 500, "VOO": 300, "BND": 200}
-        
-        summarize_allocation(allocation)
-        
-        # Check that log messages were created
-        log_text = caplog.text
-        assert "VTI" in log_text
-        assert "VOO" in log_text
-        assert "BND" in log_text
-
-
-# ============================================================================
-# UNIT TESTS - Risk Profiles
-# ============================================================================
-
-class TestRiskProfiles:
-    """Test suite for risk profile configurations"""
-    
-    @pytest.mark.parametrize("risk_level", [
-        "very_conservative",
-        "conservative",
-        "moderate",
-        "aggressive",
-        "aggressive_growth"
-    ])
-    def test_profile_exists(self, risk_level):
-        """Test that all expected risk profiles exist"""
-        assert risk_level in RISK_PROFILES
-        assert isinstance(RISK_PROFILES[risk_level], dict)
-
-    @pytest.mark.parametrize("risk_level", [
-        "very_conservative",
-        "conservative",
-        "moderate",
-        "aggressive",
-        "aggressive_growth"
-    ])
-    def test_profile_weights_sum_to_one(self, risk_level):
-        """Test that allocation percentages sum to 100%"""
-        profile = RISK_PROFILES[risk_level]
-        total_weight = sum(profile.values())
-        assert abs(total_weight - 1.0) < 0.01, f"{risk_level} weights sum to {total_weight}"
-
-    @pytest.mark.parametrize("risk_level", [
-        "very_conservative",
-        "conservative",
-        "moderate",
-        "aggressive",
-        "aggressive_growth"
-    ])
-    def test_profile_no_negative_weights(self, risk_level):
-        """Test that no allocation is negative"""
-        profile = RISK_PROFILES[risk_level]
-        for symbol, weight in profile.items():
-            assert weight >= 0, f"{symbol} has negative weight in {risk_level}"
-
-    def test_very_conservative_bond_heavy(self):
-        """Test that very conservative profile is bond-heavy"""
-        profile = RISK_PROFILES["very_conservative"]
-        assert profile["BND"] >= 0.5, "Very conservative should have 50%+ bonds"
-
-    def test_aggressive_growth_equity_heavy(self):
-        """Test that aggressive growth profile is equity-heavy"""
-        profile = RISK_PROFILES["aggressive_growth"]
-        stock_allocation = sum(v for k, v in profile.items() if k != "BND")
-        assert stock_allocation >= 0.9, "Aggressive growth should have 90%+ stocks"
-
-    @pytest.mark.parametrize("risk_level", [
-        "very_conservative",
-        "conservative",
-        "moderate",
-        "aggressive",
-        "aggressive_growth"
-    ])
-    def test_allocation_with_capital(self, risk_level):
-        """Test portfolio allocation calculation with real capital"""
-        capital = 10000
-        profile = RISK_PROFILES[risk_level]
-        
-        result = {etf: capital * weight for etf, weight in profile.items()}
-        
-        assert isinstance(result, dict)
-        assert abs(sum(result.values()) - capital) < 1
-
-
-# ============================================================================
-# UNIT TESTS - AlpacaTrader Class
-# ============================================================================
-
-class TestAlpacaTrader:
-    """Test suite for AlpacaTrader class"""
-
-    @pytest.fixture
-    def mock_trader(self):
-        """Create a trader with mocked clients"""
-        with patch('core.trader.TradingClient') as mock_trading, \
-             patch('core.trader.StockHistoricalDataClient') as mock_data:
-            
-            trader = AlpacaTrader("test_key", "test_secret", paper=True)
-            trader.client = Mock()
-            trader.data_client = Mock()
-            return trader
-
-    def test_trader_initialization(self):
+    def test_trader_initialization_success(self):
         """Test that trader initializes correctly"""
         with patch('core.trader.TradingClient') as mock_trading, \
              patch('core.trader.StockHistoricalDataClient') as mock_data:
@@ -189,8 +29,44 @@ class TestAlpacaTrader:
             mock_trading.assert_called_once_with("test_key", "test_secret", paper=True)
             mock_data.assert_called_once_with("test_key", "test_secret")
 
-    def test_get_account_value(self, mock_trader):
-        """Test getting account value"""
+    def test_initialization_connection_failure(self):
+        """Test trader initialization when connection fails"""
+        with patch('core.trader.TradingClient') as mock_client:
+            mock_client.side_effect = ConnectionError("Network error")
+            
+            with pytest.raises(TradingError) as exc_info:
+                trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            
+            assert "Failed to connect to Alpaca" in str(exc_info.value)
+
+    def test_initialization_with_api_error(self):
+        """Test initialization with API error"""
+        with patch('core.trader.TradingClient') as mock_client:
+            mock_client.side_effect = APIError("Invalid credentials")
+            
+            with pytest.raises(TradingError):
+                trader = AlpacaTrader("bad_key", "bad_secret", paper=True)
+
+
+# ============================================================================
+# GET ACCOUNT VALUE TESTS
+# ============================================================================
+
+class TestGetAccountValue:
+    """Test suite for get_account_value method"""
+
+    @pytest.fixture
+    def mock_trader(self):
+        """Create a trader with mocked clients"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            trader.client = Mock()
+            trader.data_client = Mock()
+            return trader
+
+    def test_get_account_value_success(self, mock_trader):
+        """Test getting account value successfully"""
         mock_account = Mock()
         mock_account.equity = "15000.50"
         mock_trader.client.get_account.return_value = mock_account
@@ -200,7 +76,43 @@ class TestAlpacaTrader:
         assert value == 15000.50
         mock_trader.client.get_account.assert_called_once()
 
-    def test_get_positions_value(self, mock_trader):
+    def test_get_account_value_api_error(self, mock_trader):
+        """Test get_account_value with APIError"""
+        mock_trader.client.get_account.side_effect = APIError("API rate limit")
+        
+        with pytest.raises(TradingError) as exc_info:
+            mock_trader.get_account_value()
+        
+        assert "Failed to get account value" in str(exc_info.value)
+
+    def test_get_account_value_unexpected_error(self, mock_trader):
+        """Test get_account_value with unexpected error"""
+        mock_trader.client.get_account.side_effect = ValueError("Unexpected error")
+        
+        with pytest.raises(TradingError) as exc_info:
+            mock_trader.get_account_value()
+        
+        assert "Failed to get account value" in str(exc_info.value)
+
+
+# ============================================================================
+# GET POSITIONS VALUE TESTS
+# ============================================================================
+
+class TestGetPositionsValue:
+    """Test suite for get_positions_value method"""
+
+    @pytest.fixture
+    def mock_trader(self):
+        """Create a trader with mocked clients"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            trader.client = Mock()
+            trader.data_client = Mock()
+            return trader
+
+    def test_get_positions_value_success(self, mock_trader):
         """Test getting current positions"""
         mock_positions = [
             Mock(symbol="VTI", market_value="5000"),
@@ -221,7 +133,95 @@ class TestAlpacaTrader:
 
         assert positions == {}
 
-    def test_submit_order_buy(self, mock_trader):
+    def test_get_positions_value_api_error(self, mock_trader):
+        """Test get_positions_value with APIError"""
+        mock_trader.client.get_all_positions.side_effect = APIError("API error")
+        
+        with pytest.raises(TradingError) as exc_info:
+            mock_trader.get_positions_value()
+        
+        assert "Failed to get positions" in str(exc_info.value)
+
+    def test_get_positions_value_unexpected_error(self, mock_trader):
+        """Test get_positions_value with unexpected error"""
+        mock_trader.client.get_all_positions.side_effect = RuntimeError("Unexpected")
+        
+        with pytest.raises(TradingError) as exc_info:
+            mock_trader.get_positions_value()
+        
+        assert "Failed to get positions" in str(exc_info.value)
+
+
+# ============================================================================
+# GET LATEST PRICE TESTS
+# ============================================================================
+
+class TestGetLatestPrice:
+    """Test suite for get_latest_price method"""
+
+    @pytest.fixture
+    def mock_trader(self):
+        """Create a trader with mocked clients"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            trader.client = Mock()
+            trader.data_client = Mock()
+            return trader
+
+    def test_get_latest_price_success(self, mock_trader):
+        """Test getting latest price successfully"""
+        mock_quote = Mock()
+        mock_quote.bid_price = 123.45
+        mock_trader.data_client.get_stock_latest_quote.return_value = {"VTI": mock_quote}
+
+        price = mock_trader.get_latest_price("VTI")
+
+        assert price == 123.45
+
+    def test_get_latest_price_key_error(self, mock_trader):
+        """Test get_latest_price with KeyError"""
+        mock_trader.data_client.get_stock_latest_quote.return_value = {}
+        
+        price = mock_trader.get_latest_price("INVALID")
+        
+        assert price is None
+
+    def test_get_latest_price_api_error(self, mock_trader):
+        """Test get_latest_price with APIError"""
+        mock_trader.data_client.get_stock_latest_quote.side_effect = APIError("API error")
+        
+        price = mock_trader.get_latest_price("VTI")
+        
+        assert price is None
+
+    def test_get_latest_price_unexpected_error(self, mock_trader):
+        """Test get_latest_price with unexpected error"""
+        mock_trader.data_client.get_stock_latest_quote.side_effect = Exception("Unknown error")
+        
+        price = mock_trader.get_latest_price("VTI")
+        
+        assert price is None
+
+
+# ============================================================================
+# SUBMIT ORDER TESTS
+# ============================================================================
+
+class TestSubmitOrder:
+    """Test suite for submit_order method"""
+
+    @pytest.fixture
+    def mock_trader(self):
+        """Create a trader with mocked clients"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            trader.client = Mock()
+            trader.data_client = Mock()
+            return trader
+
+    def test_submit_order_buy_success(self, mock_trader):
         """Test submitting a buy order"""
         mock_quote = Mock()
         mock_quote.bid_price = 100.0
@@ -236,7 +236,7 @@ class TestAlpacaTrader:
         assert order_arg.qty == 5
         assert order_arg.side == OrderSide.BUY
 
-    def test_submit_order_sell(self, mock_trader):
+    def test_submit_order_sell_success(self, mock_trader):
         """Test submitting a sell order"""
         mock_quote = Mock()
         mock_quote.bid_price = 100.0
@@ -258,6 +258,55 @@ class TestAlpacaTrader:
         assert result == False
         mock_trader.client.submit_order.assert_not_called()
 
+    def test_submit_order_invalid_price_zero(self, mock_trader):
+        """Test submit_order when price is 0"""
+        mock_trader.get_latest_price = Mock(return_value=0)
+        mock_trader.client.submit_order = Mock()
+        
+        result = mock_trader.submit_order("VTI", 100.0)
+        
+        assert result == False
+        mock_trader.client.submit_order.assert_not_called()
+
+    def test_submit_order_invalid_price_none(self, mock_trader):
+        """Test submit_order when price is None"""
+        mock_trader.get_latest_price = Mock(return_value=None)
+        mock_trader.client.submit_order = Mock()
+        
+        result = mock_trader.submit_order("VTI", 100.0)
+        
+        assert result == False
+        mock_trader.client.submit_order.assert_not_called()
+
+    def test_submit_order_quantity_rounds_to_zero(self, mock_trader):
+        """Test when calculated quantity is 0"""
+        # High price, low notional = 0 shares
+        mock_trader.get_latest_price = Mock(return_value=500.0)
+        mock_trader.client.submit_order = Mock()
+        
+        result = mock_trader.submit_order("BRK.A", 100.0)  # $100 / $500 = 0 shares
+        
+        assert result == False
+        mock_trader.client.submit_order.assert_not_called()
+
+    def test_submit_order_api_error(self, mock_trader):
+        """Test submit_order with APIError"""
+        mock_trader.get_latest_price = Mock(return_value=100.0)
+        mock_trader.client.submit_order.side_effect = APIError("Order rejected")
+        
+        result = mock_trader.submit_order("VTI", 500.0)
+        
+        assert result == False
+
+    def test_submit_order_unexpected_error(self, mock_trader):
+        """Test submit_order with unexpected error"""
+        mock_trader.get_latest_price = Mock(return_value=100.0)
+        mock_trader.client.submit_order.side_effect = RuntimeError("Unknown error")
+        
+        result = mock_trader.submit_order("VTI", 500.0)
+        
+        assert result == False
+
     def test_submit_order_rounding(self, mock_trader):
         """Test that order quantities are properly rounded"""
         mock_quote = Mock()
@@ -272,11 +321,11 @@ class TestAlpacaTrader:
 
 
 # ============================================================================
-# INTEGRATION TESTS
+# REBALANCE TESTS
 # ============================================================================
 
-class TestRebalanceIntegration:
-    """Integration tests for the full rebalance workflow"""
+class TestRebalance:
+    """Test suite for rebalance method"""
 
     @pytest.fixture
     def mock_trader_full(self):
@@ -318,8 +367,6 @@ class TestRebalanceIntegration:
         result = mock_trader_full.rebalance(target_alloc)
         
         # Should have attempted orders for all symbols (some may be skipped if < $1)
-        # Moderate has 5 symbols but VXUS and VTWO are new (not in current positions)
-        # So we expect at least some orders
         assert mock_trader_full.client.submit_order.call_count >= 2
 
     def test_rebalance_preserves_total_value(self, mock_trader_full):
@@ -349,34 +396,154 @@ class TestRebalanceIntegration:
         # Should submit at least some orders (some may be skipped if too small)
         assert mock_trader_full.client.submit_order.call_count >= 2
 
-
-# ============================================================================
-# ERROR HANDLING TESTS
-# ============================================================================
-
-class TestErrorHandling:
-    """Test error handling and edge cases"""
-
-    def test_invalid_risk_profile(self):
-        """Test handling of invalid risk profile"""
-        assert "invalid_profile" not in RISK_PROFILES
-
-    def test_trader_with_api_error(self):
-        """Test trader behavior when API fails"""
-        with patch('core.trader.TradingClient') as mock_trading:
-            mock_trading.side_effect = Exception("API Connection Error")
+    def test_rebalance_with_account_error(self):
+        """Test rebalance when get_account fails"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
             
-            with pytest.raises(Exception):
-                trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            trader.client.get_account.side_effect = APIError("Account error")
+            
+            target_alloc = {"VTI": 1.0}
+            
+            with pytest.raises(TradingError):
+                trader.rebalance(target_alloc)
 
-    def test_rebalance_with_missing_position_data(self):
-        """Test rebalancing when position data is incomplete"""
+    def test_rebalance_with_positions_error(self):
+        """Test rebalance when get_positions fails"""
         with patch('core.trader.TradingClient'), \
              patch('core.trader.StockHistoricalDataClient'):
             
             trader = AlpacaTrader("test_key", "test_secret", paper=True)
             
-            # Mock with None values
+            mock_account = Mock()
+            mock_account.equity = "10000"
+            trader.client.get_account.return_value = mock_account
+            trader.client.get_all_positions.side_effect = APIError("Positions error")
+            
+            target_alloc = {"VTI": 1.0}
+            
+            with pytest.raises(TradingError):
+                trader.rebalance(target_alloc)
+
+    def test_rebalance_with_allocation_warning(self):
+        """Test rebalance logs warning for invalid total allocation"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            
+            mock_account = Mock()
+            mock_account.equity = "10000"
+            trader.client.get_account.return_value = mock_account
+            trader.client.get_all_positions.return_value = []
+            
+            trader.get_latest_price = Mock(return_value=100.0)
+            trader.client.submit_order = Mock()
+            
+            # Allocation that doesn't sum to 1.0
+            target_alloc = {"VTI": 0.5, "BND": 0.3}  # Sums to 0.8
+            
+            result = trader.rebalance(target_alloc)
+            
+            # Should still execute despite warning
+            assert isinstance(result, dict)
+
+    def test_rebalance_from_empty_portfolio(self, mock_trader_full):
+        """Test rebalancing from empty portfolio"""
+        mock_trader_full.client.get_all_positions.return_value = []
+        
+        target_alloc = RISK_PROFILES["moderate"]
+        result = mock_trader_full.rebalance(target_alloc)
+        
+        # Should place orders for all positions
+        assert mock_trader_full.client.submit_order.call_count >= 2
+
+    def test_rebalance_returns_status_dict(self, mock_trader_full):
+        """Test that rebalance returns status dictionary"""
+        target_alloc = RISK_PROFILES["moderate"]
+        
+        result = mock_trader_full.rebalance(target_alloc)
+        
+        assert isinstance(result, dict)
+        # Should have status for each symbol in target allocation
+        for symbol in target_alloc.keys():
+            assert symbol in result
+            assert isinstance(result[symbol], bool)
+
+    def test_rebalance_multiple_symbols_some_fail(self):
+        """Test rebalance when some orders fail but others succeed"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            
+            mock_account = Mock()
+            mock_account.equity = "10000"
+            trader.client.get_account.return_value = mock_account
+            trader.client.get_all_positions.return_value = []
+            
+            # Make get_latest_price return None for one symbol
+            def mock_price(symbol):
+                if symbol == "INVALID":
+                    return None
+                return 100.0
+            
+            trader.get_latest_price = Mock(side_effect=mock_price)
+            trader.client.submit_order = Mock()
+            
+            target_alloc = {"VTI": 0.5, "INVALID": 0.5}
+            
+            result = trader.rebalance(target_alloc)
+            
+            # Should handle the failure gracefully
+            assert "VTI" in result
+            assert "INVALID" in result
+            assert result["INVALID"] == False  # Failed
+
+
+# ============================================================================
+# TRADING ERROR TESTS
+# ============================================================================
+
+class TestTradingError:
+    """Test suite for TradingError exception"""
+
+    def test_trading_error_is_exception(self):
+        """Test that TradingError is an Exception"""
+        error = TradingError("Test error")
+        assert isinstance(error, Exception)
+
+    def test_trading_error_message(self):
+        """Test TradingError message"""
+        message = "API connection failed"
+        error = TradingError(message)
+        assert str(error) == message
+
+    def test_trading_error_raised(self):
+        """Test that TradingError can be raised and caught"""
+        with pytest.raises(TradingError) as exc_info:
+            raise TradingError("Test error")
+        
+        assert "Test error" in str(exc_info.value)
+
+
+# ============================================================================
+# INTEGRATION TESTS
+# ============================================================================
+
+class TestTraderIntegration:
+    """Integration tests for complete trading workflows"""
+
+    def test_full_trading_cycle(self):
+        """Test complete trading cycle from initialization to rebalance"""
+        with patch('core.trader.TradingClient'), \
+             patch('core.trader.StockHistoricalDataClient'):
+            
+            # Initialize trader
+            trader = AlpacaTrader("test_key", "test_secret", paper=True)
+            
+            # Mock all dependencies
             mock_account = Mock()
             mock_account.equity = "10000"
             trader.client.get_account = Mock(return_value=mock_account)
@@ -384,11 +551,21 @@ class TestErrorHandling:
             
             mock_quote = Mock()
             mock_quote.bid_price = 100.0
-            trader.data_client.get_stock_latest_quote = Mock(return_value={"VTI": mock_quote})
+            trader.data_client.get_stock_latest_quote = Mock(
+                return_value={"VTI": mock_quote}
+            )
             trader.client.submit_order = Mock()
             
-            target_alloc = {"VTI": 1.0}
+            # Execute complete cycle
+            account_value = trader.get_account_value()
+            positions = trader.get_positions_value()
+            price = trader.get_latest_price("VTI")
+            order_result = trader.submit_order("VTI", 1000.0)
+            rebalance_result = trader.rebalance({"VTI": 1.0})
             
-            # Should handle empty positions gracefully
-            trader.rebalance(target_alloc)
-            assert trader.client.submit_order.called
+            # Verify all operations completed
+            assert account_value == 10000.0
+            assert positions == {}
+            assert price == 100.0
+            assert order_result == True
+            assert isinstance(rebalance_result, dict)
